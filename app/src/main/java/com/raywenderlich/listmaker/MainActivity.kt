@@ -14,7 +14,6 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.raywenderlich.listmaker.databinding.ActivityMainBinding
 import org.intellij.lang.annotations.JdkConstants
 
 class MainActivity : AppCompatActivity(),
@@ -22,6 +21,9 @@ ListSelectionFragment.OnListItemFragmentInteractionListener {
 
     private var listSelectionFragment: ListSelectionFragment = ListSelectionFragment.newInstance()
     private var fragmentContainer: FrameLayout? = null
+    private var largeScreen = false
+    private var listFragment: ListDetailFragment?=null
+    private lateinit var fab: FloatingActionButton
 
     override fun onListItemClicked(list: TaskList){
         showListDetail(list)
@@ -32,24 +34,20 @@ ListSelectionFragment.OnListItemFragmentInteractionListener {
         const val LIST_DETAIL_REQUEST_CODE = 123
     }
 
-    private lateinit var binding: ActivityMainBinding
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-//        binding = ActivityMainBinding.inflate(layoutInflater)
-//        val view = binding.root
         setContentView(R.layout.activity_main)
-
-        fragmentContainer = findViewById(R.id.fragment_container)
-        supportFragmentManager
-            .beginTransaction()
-            .add(R.id.fragment_container, listSelectionFragment)
-            .commit()
-
         setSupportActionBar(findViewById(R.id.toolbar))
 
-        findViewById<FloatingActionButton>(R.id.fab).setOnClickListener { view ->
+        listSelectionFragment = supportFragmentManager.findFragmentById(R.id.list_selection_fragment)
+                as ListSelectionFragment
+
+        fragmentContainer = findViewById(R.id.fragment_container)
+
+        largeScreen = (fragmentContainer!=null)
+
+        fab = findViewById<FloatingActionButton>(R.id.fab)
+        fab.setOnClickListener { view ->
             showCreateListDialog()
         }
     }
@@ -83,6 +81,28 @@ ListSelectionFragment.OnListItemFragmentInteractionListener {
         }
     }
 
+    override fun onBackPressed() {
+        super.onBackPressed()
+
+        title = resources.getString(R.string.app_name)
+
+        listFragment?.list?.let{
+            listSelectionFragment.listDataManager.saveList(it)
+        }
+
+        listFragment?.let{
+            supportFragmentManager
+                    .beginTransaction()
+                    .remove(it)
+                    .commit()
+            listFragment = null
+        }
+
+        fab.setOnClickListener{
+            showCreateListDialog()
+        }
+    }
+
     private fun showCreateListDialog(){
         val dialogTitle = getString(R.string.name_of_list)
         val positiveButtonTitle = getString(R.string.create_list)
@@ -104,11 +124,42 @@ ListSelectionFragment.OnListItemFragmentInteractionListener {
     }
 
     private fun showListDetail(list: TaskList){
-        val listDetailIntent = Intent (this,
-                ListDetailActivity::class.java)
+        if (!largeScreen){
+            val listDetailIntent = Intent (this,
+                    ListDetailActivity::class.java)
 
-        listDetailIntent.putExtra(INTENT_LIST_KEY, list)
-        startActivityForResult(listDetailIntent, LIST_DETAIL_REQUEST_CODE)
+            listDetailIntent.putExtra(INTENT_LIST_KEY, list)
+            startActivityForResult(listDetailIntent, LIST_DETAIL_REQUEST_CODE)
+        } else {
+            title = list.name
+
+            listFragment = ListDetailFragment.newInstance(list)
+            listFragment?.let{
+                supportFragmentManager.beginTransaction()
+                        .replace(R.id.fragment_container,it,getString(R.string.list_fragment_tag))
+                        .addToBackStack(null)
+                        .commit()
+            }
+            fab.setOnClickListener {
+                showCreateTaskDialog()
+            }
+        }
+    }
+
+    private fun showCreateTaskDialog() {
+        val taskEditText = EditText(this)
+        taskEditText.inputType = InputType.TYPE_CLASS_TEXT
+
+        AlertDialog.Builder(this)
+                .setTitle(R.string.task_to_add)
+                .setView(taskEditText)
+                .setPositiveButton(R.string.add_task){dialog,_ ->
+                    val task = taskEditText.text.toString()
+                    listFragment?.addTask(task)
+                    dialog.dismiss()
+                }
+                .create()
+                .show()
     }
 }
 
